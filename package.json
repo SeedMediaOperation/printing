@@ -2,12 +2,12 @@
   "name": "reactjs",
   "version": "1.0.0",
   "type": "module",
-  "main": "./src/api/index.js",
+  "main": "/src/api/index.js",
   "engines": {
     "node": "18.x"
   },
   "scripts": {
-    "start": "node ./src/api/index.js",
+    "start": "node /src/api/index.js",
     "build": "echo 'Build step completed'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

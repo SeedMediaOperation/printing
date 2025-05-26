@@ -97,7 +97,7 @@ async function printPDF(filePath, printerName) {
 }
 
 // Function to generate PDF with retry logic
-async function generatePDF(templateData, filePath, maxRetries = 3) {
+async function generatePDF(templateData, maxRetries = 3) {
   let browser = null;
   let retryCount = 0;
 
@@ -141,15 +141,8 @@ async function generatePDF(templateData, filePath, maxRetries = 3) {
         timeout: 60000,
       });
 
-      // Ensure the directory exists
-      const dir = path.dirname(filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-
-      // Generate PDF with more options
-      await page.pdf({
-        path: filePath,
+      // Generate PDF buffer instead of saving to file
+      const pdfBuffer = await page.pdf({
         width: "80mm",
         printBackground: true,
         margin: {
@@ -162,8 +155,8 @@ async function generatePDF(templateData, filePath, maxRetries = 3) {
         preferCSSPageSize: true,
       });
 
-      console.log("PDF generated successfully at:", filePath);
-      return filePath;
+      console.log("PDF generated successfully in memory");
+      return pdfBuffer;
     } catch (error) {
       console.error(`PDF generation attempt ${retryCount + 1} failed:`, error);
       retryCount++;
@@ -188,6 +181,73 @@ async function generatePDF(templateData, filePath, maxRetries = 3) {
   }
 }
 
+// Function to print PDF buffer directly
+async function printPDFBuffer(pdfBuffer, printerName) {
+  try {
+    // Check if running in serverless environment
+    const isServerless = !fs.existsSync("/tmp");
+
+    if (isServerless) {
+      console.log(
+        "Running in serverless environment - printing is not supported"
+      );
+      return {
+        success: false,
+        message: "Printing is not supported in serverless environment.",
+      };
+    }
+
+    const platform = os.platform();
+    let command;
+
+    // Create a temporary file to print
+    const tempFile = path.join(os.tmpdir(), `temp-print-${Date.now()}.pdf`);
+    fs.writeFileSync(tempFile, pdfBuffer);
+
+    if (platform === "darwin" || platform === "linux") {
+      command = `lp -d "${printerName}" "${tempFile}"`;
+    } else if (platform === "win32") {
+      command = `powershell -Command "Start-Process -FilePath '${tempFile}' -Verb Print -PassThru | Out-Null"`;
+    } else {
+      console.error(`Unsupported platform: ${platform}`);
+      return {
+        success: false,
+        message: `Unsupported platform: ${platform}`,
+      };
+    }
+
+    console.log("Executing print command:", command);
+    const { stdout, stderr } = await execAsync(command);
+
+    // Clean up temporary file
+    try {
+      fs.unlinkSync(tempFile);
+    } catch (cleanupError) {
+      console.error("Error cleaning up temporary file:", cleanupError);
+    }
+
+    if (stderr) {
+      console.error("Printing error:", stderr);
+      return {
+        success: false,
+        message: `Printing error: ${stderr}`,
+      };
+    }
+
+    console.log("Print job submitted successfully:", stdout);
+    return {
+      success: true,
+      message: "Print job submitted successfully",
+    };
+  } catch (error) {
+    console.error("Printing error:", error);
+    return {
+      success: false,
+      message: `Printing error: ${error.message}`,
+    };
+  }
+}
+
 // Add GET endpoint for health check and testing
 app.get("/api/printing", (req, res) => {
   res.json({
@@ -203,13 +263,6 @@ app.get("/api/printing", (req, res) => {
 app.post("/api/printing", async (req, res) => {
   try {
     const { invoiceId, customerName, items, status, printName } = req.body;
-    const fileName = `invoice-${invoiceId || uuidv4()}.pdf`;
-    const filePath = `../invoices/${fileName}`;
-
-    // Ensure invoices directory exists
-    if (!fs.existsSync("../invoices")) {
-      fs.mkdirSync("../invoices");
-    }
 
     // Calculate subtotals for items
     const itemsWithSubtotals = items.map((item) => {
@@ -242,21 +295,19 @@ app.post("/api/printing", async (req, res) => {
     };
 
     console.log("Generating PDF...");
-    await generatePDF(templateData, filePath);
-    console.log("PDF generated successfully at:", filePath);
+    const pdfBuffer = await generatePDF(templateData);
+    console.log("PDF generated successfully in memory");
 
     // Auto print if requested
     let printResult = null;
     if (status) {
       console.log("Auto-print requested, sending to printer...");
-      printResult = await printPDF(filePath, printName);
+      printResult = await printPDFBuffer(pdfBuffer, printName);
       console.log("Print status:", printResult);
     }
 
     res.json({
       success: true,
-      filePath: filePath,
-      fileName: fileName,
       printResult: printResult,
       message: printResult?.message || "PDF generated successfully",
     });
