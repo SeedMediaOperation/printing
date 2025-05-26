@@ -204,11 +204,24 @@ app.post("/api/printing", async (req, res) => {
   try {
     const { invoiceId, customerName, items, status, printName } = req.body;
     const fileName = `invoice-${invoiceId || uuidv4()}.pdf`;
-    const filePath = `../invoices/${fileName}`;
 
-    // Ensure invoices directory exists
-    if (!fs.existsSync("../invoices")) {
-      fs.mkdirSync("../invoices");
+    // Use a directory relative to the application's location
+    const invoicesDir = path.join(__dirname, "..", "invoices");
+    const filePath = path.join(invoicesDir, fileName);
+
+    // Ensure invoices directory exists with better error handling
+    try {
+      if (!fs.existsSync(invoicesDir)) {
+        fs.mkdirSync(invoicesDir, { recursive: true });
+      }
+    } catch (error) {
+      console.error("Error creating invoices directory:", error);
+      // Fallback to temp directory if main directory is not writable
+      const tempDir = path.join(os.tmpdir(), "invoices");
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      const filePath = path.join(tempDir, fileName);
     }
 
     // Calculate subtotals for items
