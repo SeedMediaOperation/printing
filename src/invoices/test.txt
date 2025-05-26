@@ -1,0 +1,8 @@
+project_root/
+├── templates/
+│   └── receipt.html
+└── src/
+    ├── api/
+    │   └── index.js
+    └── invoices/
+        └── filename.pdf

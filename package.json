@@ -1,0 +1,28 @@
+{
+  "name": "reactjs",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "/src/api/index.js",
+  "engines": {
+    "node": "18.x"
+  },
+  "scripts": {
+    "start": "node /src/api/index.js",
+    "build": "echo 'Build step completed'",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.9.0",
+    "body-parser": "^2.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "handlebars": "^4.7.8",
+    "puppeteer": "^19.11.1",
+    "puppeteer-core": "^19.11.1",
+    "uuid": "^11.1.0"
+  }
+}
