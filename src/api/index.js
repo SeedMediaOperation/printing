@@ -174,9 +174,14 @@ async function printPDFBuffer(pdfBuffer, printerName) {
     const tempFile = path.join(os.tmpdir(), `temp-print-${Date.now()}.pdf`);
     fs.writeFileSync(tempFile, pdfBuffer);
 
-    if (platform === "darwin" || platform === "linux") {
+    if (platform === "darwin") {
+      // macOS
+      command = `lpr -P "${printerName}" "${tempFile}"`;
+    } else if (platform === "linux") {
+      // Linux
       command = `lp -d "${printerName}" "${tempFile}"`;
     } else if (platform === "win32") {
+      // Windows
       command = `powershell -Command "Start-Process -FilePath '${tempFile}' -Verb Print -PassThru | Out-Null"`;
     } else {
       console.error(`Unsupported platform: ${platform}`);
