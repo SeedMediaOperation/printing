@@ -3,7 +3,7 @@ import bodyParser from "body-parser";
 import os from "os";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
-import puppeteer from "puppeteer";
+import PDFDocument from "pdfkit";
 import Handlebars from "handlebars";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -96,89 +96,59 @@ async function printPDF(filePath, printerName) {
   }
 }
 
-// Function to generate PDF with retry logic
-async function generatePDF(templateData, maxRetries = 3) {
-  let browser = null;
-  let retryCount = 0;
-
-  while (retryCount < maxRetries) {
+// Function to generate PDF
+async function generatePDF(templateData) {
+  return new Promise((resolve, reject) => {
     try {
-      const template = fs.readFileSync(
-        path.join(__dirname, "templates", "receipt.html"),
-        "utf-8"
-      );
-      const compiledTemplate = Handlebars.compile(template);
-      const html = compiledTemplate(templateData);
-
-      // More stable Puppeteer configuration
-      browser = await puppeteer.launch({
-        headless: true,
-        executablePath:
-          process.platform === "darwin"
-            ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-            : undefined,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--disable-gpu",
-          "--no-first-run",
-          "--no-zygote",
-          "--single-process",
-          "--disable-extensions",
-        ],
-        ignoreHTTPSErrors: true,
-        timeout: 60000,
+      // Create a new PDF document
+      const doc = new PDFDocument({
+        size: [226.77, 800], // 80mm width in points (80mm * 2.83465 points/mm)
+        margin: 10,
+        autoFirstPage: true,
       });
 
-      const page = await browser.newPage();
+      // Create chunks array to store PDF data
+      const chunks = [];
 
-      // Set viewport and content
-      await page.setViewport({ width: 800, height: 600 });
-      await page.setContent(html, {
-        waitUntil: ["load", "networkidle0"],
-        timeout: 60000,
+      // Collect PDF data chunks
+      doc.on("data", (chunk) => chunks.push(chunk));
+      doc.on("end", () => {
+        // Combine chunks into a single buffer
+        const pdfBuffer = Buffer.concat(chunks);
+        resolve(pdfBuffer);
       });
 
-      // Generate PDF buffer instead of saving to file
-      const pdfBuffer = await page.pdf({
-        width: "80mm",
-        printBackground: true,
-        margin: {
-          top: "5mm",
-          right: "5mm",
-          bottom: "5mm",
-          left: "5mm",
-        },
-        timeout: 60000,
-        preferCSSPageSize: true,
+      // Add content to PDF
+      doc.fontSize(12);
+      doc.text("Invoice", { align: "center" });
+      doc.moveDown();
+
+      // Add invoice details
+      doc.fontSize(10);
+      doc.text(`Invoice ID: ${templateData.invoiceId}`);
+      doc.text(`Customer: ${templateData.customerName}`);
+      doc.text(`Date: ${templateData.date}`);
+      doc.moveDown();
+
+      // Add items table header
+      doc.text("Items:", { underline: true });
+      doc.moveDown(0.5);
+
+      // Add items
+      templateData.items.forEach((item) => {
+        doc.text(`${item.name} x ${item.quantity} = $${item.subtotal}`);
       });
 
-      console.log("PDF generated successfully in memory");
-      return pdfBuffer;
+      doc.moveDown();
+      doc.text(`Total: $${templateData.total}`, { align: "right" });
+
+      // Finalize PDF
+      doc.end();
     } catch (error) {
-      console.error(`PDF generation attempt ${retryCount + 1} failed:`, error);
-      retryCount++;
-
-      if (retryCount === maxRetries) {
-        throw new Error(
-          `Failed to generate PDF after ${maxRetries} attempts: ${error.message}`
-        );
-      }
-
-      // Wait before retrying
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    } finally {
-      if (browser) {
-        try {
-          await browser.close();
-        } catch (closeError) {
-          console.error("Error closing browser:", closeError);
-        }
-      }
+      console.error("Error in PDF generation:", error);
+      reject(error);
     }
-  }
+  });
 }
 
 // Function to print PDF buffer directly

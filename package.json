@@ -18,12 +18,10 @@
   "dependencies": {
     "axios": "^1.9.0",
     "body-parser": "^2.2.0",
-    "chrome-aws-lambda": "^10.1.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "handlebars": "^4.7.8",
-    "puppeteer": "^24.9.0",
-    "puppeteer-core": "^10.1.0",
+    "pdfkit": "^0.14.0",
     "uuid": "^11.1.0"
   }
 }
